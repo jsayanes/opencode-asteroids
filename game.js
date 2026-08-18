@@ -140,6 +140,7 @@ class Ship {
     this.shootCooldown = 0;
     this.dead          = false;
     this.speedBoost    = 0;
+    this.tripleShot    = 0;
   }
 
   update(dt) {
@@ -147,6 +148,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
+    if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
     const ROT   = 3.5;   // rad/s
     const THRUST = this.speedBoost > 0 ? 520 : 260;  // px/s²
@@ -173,6 +175,16 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
+    if (this.tripleShot > 0) {
+      const px = -Math.sin(this.angle);
+      const py =  Math.cos(this.angle);
+      const SPREAD = 8;
+      return [
+        new Bullet(ox + px *  SPREAD, oy + py *  SPREAD, this.angle),
+        new Bullet(ox,                       oy,                       this.angle),
+        new Bullet(ox + px * -SPREAD, oy + py * -SPREAD, this.angle),
+      ];
+    }
     return [new Bullet(ox, oy, this.angle)];
   }
 
@@ -245,9 +257,10 @@ class Particle {
 
 // ── PowerUp ───────────────────────────────────────────────────────────────────
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'V') {
     this.x = x;
     this.y = y;
+    this.type = type;
     const angle = rand(0, Math.PI * 2);
     const speed = rand(40, 70);
     this.vx = Math.cos(angle) * speed;
@@ -269,9 +282,11 @@ class PowerUp {
   draw() {
     const pulse = 1 + Math.sin(this.rot * 6) * 0.08;
     const r = this.radius * pulse;
+    const color = this.type === 'T' ? '#00E5FF' : '#FFD700';
+    const label = this.type === 'T' ? 'T' : 'V';
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill();
@@ -279,7 +294,7 @@ class PowerUp {
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('V', 0, 0);
+    ctx.fillText(label, 0, 0);
     ctx.restore();
   }
 }
@@ -462,7 +477,8 @@ function update(dt) {
         score += POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
-        if (Math.random() < 0.15) powerUps.push(new PowerUp(a.x, a.y));
+        if (Math.random() < 0.15) powerUps.push(new PowerUp(a.x, a.y, 'V'));
+        if (Math.random() < 0.15) powerUps.push(new PowerUp(a.x, a.y, 'T'));
       }
     }
   }
@@ -496,7 +512,8 @@ function update(dt) {
   // Nave vs power-up
   for (const p of powerUps) {
     if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
-      ship.speedBoost += 5;
+      if (p.type === 'T') ship.tripleShot += 5;
+      else                ship.speedBoost += 5;
       p.dead = true;
     }
   }
@@ -540,9 +557,17 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(`SCORE  ${score}`, 14, 26);
 
-  if (ship.speedBoost > 0) {
-    ctx.fillStyle = '#FFD700';
-    ctx.fillText(`VELOCIDAD ${ship.speedBoost.toFixed(1)}s`, 14, 46);
+  if (ship.speedBoost > 0 || ship.tripleShot > 0) {
+    let py = 46;
+    if (ship.speedBoost > 0) {
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText(`VELOCIDAD ${ship.speedBoost.toFixed(1)}s`, 14, py);
+      py += 20;
+    }
+    if (ship.tripleShot > 0) {
+      ctx.fillStyle = '#00E5FF';
+      ctx.fillText(`TRIPLE ${ship.tripleShot.toFixed(1)}s`, 14, py);
+    }
     ctx.fillStyle = '#fff';
   }
 
