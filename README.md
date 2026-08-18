@@ -43,3 +43,7 @@ Luego visita `http://localhost:3000`.
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
+- Estrella fugaz: asteroide especial de alto valor que cruza la pantalla periódicamente
+- Power-ups que caen al destruir asteroides:
+  - **`V` (velocidad)** — aumenta la propulsión durante 5 segundos
+  - **`E` (escudo)** — otorga 3 cargas de escudo (acumulables) que protegen a la nave de asteroides y estrellas fugaces; cada impacto consume una carga y destruye la amenaza sin otorgar puntos
