@@ -12,7 +12,7 @@ const justPressed = {};
 window.addEventListener('keydown', e => {
   justPressed[e.code] = !keys[e.code];
   keys[e.code] = true;
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code))
     e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -124,6 +124,36 @@ class Asteroid {
   }
 }
 
+// ── Skins ─────────────────────────────────────────────────────────────────────
+// Skins puramente visuales: no afectan hitbox (ship.radius) ni física.
+// vertices = silueta de la nave en coords locales (sin rotar), igual escala que draw original.
+const SKINS = [
+  { id: 'clasica',   nombre: 'Clásica',   stroke: '#fff', flame: 'rgba(255,130,0,0.85)',
+    vertices: [[20,0],[-12,-9],[-7,0],[-12,9]],  lineWidth: 1.5 },
+  { id: 'neon',      nombre: 'Neón',      stroke: '#0ff', flame: 'rgba(0,255,255,0.9)',
+    vertices: [[20,0],[-12,-9],[-7,0],[-12,9]],  lineWidth: 1.5 },
+  { id: 'esmeralda', nombre: 'Esmeralda', stroke: '#3f3', flame: 'rgba(120,255,120,0.9)',
+    vertices: [[20,0],[-12,-9],[-7,0],[-12,9]],  lineWidth: 1.5 },
+  { id: 'carmesi',   nombre: 'Carmesí',   stroke: '#f33', flame: 'rgba(255,80,80,0.9)',
+    vertices: [[20,0],[-12,-9],[-7,0],[-12,9]],  lineWidth: 1.5 },
+  { id: 'dardo',     nombre: 'Dardo',     stroke: '#fc0', flame: 'rgba(255,200,0,0.9)',
+    vertices: [[24,0],[-14,-7],[-6,0],[-14,7]],  lineWidth: 1.5 },
+];
+
+const SKIN_KEY = 'asteroids.skin';
+let currentSkin = (() => {
+  try {
+    const saved = localStorage.getItem(SKIN_KEY);
+    const i = SKINS.findIndex(s => s.id === saved);
+    return i >= 0 ? i : 0;
+  } catch { return 0; }
+})();
+const getSkin = () => SKINS[currentSkin];
+function cycleSkin(dir) {
+  currentSkin = (currentSkin + dir + SKINS.length) % SKINS.length;
+  try { localStorage.setItem(SKIN_KEY, SKINS[currentSkin].id); } catch {}
+}
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor() { this.reset(); }
@@ -181,19 +211,19 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const skin = getSkin();
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
+    ctx.strokeStyle = skin.stroke;
+    ctx.lineWidth   = skin.lineWidth;
     ctx.lineJoin    = 'round';
 
-    // Silueta clásica: triángulo con muesca trasera
+    // Silueta según la skin activa
+    const v = skin.vertices;
     ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
+    ctx.moveTo(v[0][0], v[0][1]);
+    for (let i = 1; i < v.length; i++) ctx.lineTo(v[i][0], v[i][1]);
     ctx.closePath();
     ctx.stroke();
 
@@ -203,7 +233,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = skin.flame;
       ctx.stroke();
     }
 
@@ -410,6 +440,13 @@ function killShip() {
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  // Cambio de skin en vivo: Tab = siguiente, Shift+Tab = anterior.
+  // Válido en cualquier estado (playing | dead | gameover).
+  // pressed() consume el flag edge-triggered para no repetir mientras se mantiene Tab.
+  if (pressed('Tab')) {
+    cycleSkin((keys['ShiftLeft'] || keys['ShiftRight']) ? -1 : 1);
+  }
+
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
     particles.forEach(p => p.update(dt));
@@ -517,17 +554,20 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const skin = getSkin();
+  // Escala para encajar la silueta de la skin en el tamaño del icono (~18px).
+  // La silueta original se extiende ~±20px; 0.45 => ~±9px, equivalente al icono previo.
+  const SCALE = 0.45;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.2;
+  ctx.strokeStyle = skin.stroke;
+  ctx.lineWidth   = skin.lineWidth;
   ctx.lineJoin    = 'round';
+  const v = skin.vertices;
   ctx.beginPath();
-  ctx.moveTo( 9,  0);
-  ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
+  ctx.moveTo(v[0][0] * SCALE, v[0][1] * SCALE);
+  for (let i = 1; i < v.length; i++) ctx.lineTo(v[i][0] * SCALE, v[i][1] * SCALE);
   ctx.closePath();
   ctx.stroke();
   ctx.restore();
@@ -548,6 +588,11 @@ function drawHUD() {
 
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = '12px monospace';
+  ctx.fillText(`SKIN: ${getSkin().nombre}  [Tab/Shift+Tab]`, W / 2, 46);
+  ctx.fillStyle = '#fff';
+  ctx.font = '15px monospace';
 
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
