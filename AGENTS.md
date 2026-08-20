@@ -16,7 +16,7 @@ Source is organized top-down by section banners (`── Input ──`, `── 
 
 - **Toroidal space.** All positions wrap via `wrap(v, max)`. Every entity's `update` must wrap; do not add clamping/bouncing.
 - **Input.** `keys` = held state (rotate, thrust). `justPressed` + `pressed(code)` = edge-triggered (shoot, restart). New key actions must pick the right pattern. Arrow keys + `Space` are in the `preventDefault` list in the `keydown` listener; add new such keys there or the page scrolls.
-- **Asteroid sizes.** Size 3 = large, 2 = medium, 1 = small (small does not split). `RADII`, `SPEEDS`, `POINTS` are arrays indexed by size with index 0 unused.
+- **Asteroid sizes.** Size 3 = large, 2 = medium, 1 = small (small does not split), 0 = mini rápido (super fast, spawned on a timer from a screen edge, does not split). `RADII`, `SPEEDS`, `POINTS` are arrays indexed by size (0 = mini rápido, 8/280/200).
 - **dt.** Clamped to 0.05s in `loop` to survive tab refocus; everything is in seconds, not ms.
 - **State machine.** `state ∈ 'playing' | 'dead' | 'gameover'`. `dead` is the respawn pause (`deadTimer`), `gameover` waits for `Space` to re-init.
 - **Collision.** Bullet vs asteroid: pure radius. Ship vs asteroid: `ship.radius + a.radius * 0.82` (the 0.82 tolerance is intentional, keep it).
