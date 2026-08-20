@@ -413,12 +413,76 @@ class ShootingStar {
   }
 }
 
+// ── Mina (obstáculo lento) ────────────────────────────────────────────────────
+const MINE_INTERVAL = 15;   // s entre spawns
+const MINE_SPEED    = 22;   // px/s (lento)
+const MINE_TTL      = 18;   // s
+const MINE_POINTS   = 250;
+const MINE_RADIUS   = 18;
+
+class Mine {
+  constructor() {
+    const edge = randInt(0, 3);
+    if      (edge === 0) { this.x = rand(0, W); this.y = 0; }
+    else if (edge === 1) { this.x = W;          this.y = rand(0, H); }
+    else if (edge === 2) { this.x = rand(0, W); this.y = H; }
+    else                 { this.x = 0;          this.y = rand(0, H); }
+    const angle = rand(0, Math.PI * 2);
+    this.vx = Math.cos(angle) * MINE_SPEED;
+    this.vy = Math.sin(angle) * MINE_SPEED;
+    this.radius   = MINE_RADIUS;
+    this.ttl      = MINE_TTL;
+    this.rot      = 0;
+    this.rotSpeed = rand(-0.6, 0.6);
+    this.dead     = false;
+  }
+
+  update(dt) {
+    this.x = wrap(this.x + this.vx * dt, W);
+    this.y = wrap(this.y + this.vy * dt, H);
+    this.rot += this.rotSpeed * dt;
+    this.ttl -= dt;
+    if (this.ttl <= 0) this.dead = true;
+  }
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.strokeStyle = '#f0f';
+    ctx.fillStyle   = 'rgba(255,0,255,0.18)';
+    ctx.lineWidth   = 1.5;
+    ctx.lineJoin    = 'round';
+    const spikes = 6;
+    const outer  = this.radius;
+    const inner  = this.radius * 0.55;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r  = i % 2 === 0 ? outer : inner;
+      const a  = (i / (spikes * 2)) * Math.PI * 2;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#f0f';
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 // ── Estado del juego ──────────────────────────────────────────────────────────
-let ship, bullets, asteroids, particles, powerUps, shootingStars;
+let ship, bullets, asteroids, particles, powerUps, shootingStars, mines;
 let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
 let shootingStarTimer;
+let mineTimer;
 
 function spawnAsteroids(count) {
   const SAFE_DIST = 130;
@@ -440,6 +504,8 @@ function initGame() {
   powerUps  = [];
   shootingStars     = [];
   shootingStarTimer = SHOOTING_STAR_INTERVAL;
+  mines      = [];
+  mineTimer  = MINE_INTERVAL;
   score  = 0;
   lives  = 3;
   level  = 1;
@@ -454,6 +520,8 @@ function nextLevel() {
   powerUps  = [];
   shootingStars     = [];
   shootingStarTimer = SHOOTING_STAR_INTERVAL;
+  mines      = [];
+  mineTimer  = MINE_INTERVAL;
   ship.reset();
   spawnAsteroids(3 + level);
 }
@@ -497,6 +565,8 @@ function update(dt) {
     asteroids.forEach(a => a.update(dt));
     shootingStars.forEach(s => s.update(dt));
     shootingStars = shootingStars.filter(s => !s.dead);
+    mines.forEach(m => m.update(dt));
+    mines = mines.filter(m => !m.dead);
     if (deadTimer <= 0) { state = 'playing'; ship.reset(); }
     return;
   }
@@ -513,17 +583,26 @@ function update(dt) {
     shootingStarTimer = SHOOTING_STAR_INTERVAL;
   }
 
+  // Spawn mina (obstáculo lento)
+  mineTimer -= dt;
+  if (mineTimer <= 0) {
+    mines.push(new Mine());
+    mineTimer = MINE_INTERVAL;
+  }
+
   ship.update(dt);
   bullets.forEach(b => b.update(dt));
   asteroids.forEach(a => a.update(dt));
   particles.forEach(p => p.update(dt));
   powerUps.forEach(p => p.update(dt));
   shootingStars.forEach(s => s.update(dt));
+  mines.forEach(m => m.update(dt));
 
   bullets       = bullets.filter(b => !b.dead);
   particles     = particles.filter(p => !p.dead);
   powerUps      = powerUps.filter(p => !p.dead);
   shootingStars = shootingStars.filter(s => !s.dead);
+  mines         = mines.filter(m => !m.dead);
 
   // Bala vs asteroide
   const newAsteroids = [];
@@ -559,6 +638,20 @@ function update(dt) {
   shootingStars = shootingStars.filter(s => !s.dead);
   bullets       = bullets.filter(b => !b.dead);
 
+  // Bala vs mina
+  for (const b of bullets) {
+    for (const m of mines) {
+      if (!m.dead && !b.dead && dist(b, m) < m.radius) {
+        b.dead = true;
+        m.dead = true;
+        score += MINE_POINTS;
+        explode(m.x, m.y, 10);
+      }
+    }
+  }
+  mines   = mines.filter(m => !m.dead);
+  bullets = bullets.filter(b => !b.dead);
+
   // Nave vs asteroide
   if (ship.invincible <= 0) {
     for (const a of asteroids) {
@@ -593,6 +686,22 @@ function update(dt) {
           ship.shield -= 1;
           s.dead = true;
           explode(s.x, s.y, 12);
+        } else {
+          killShip();
+        }
+        break;
+      }
+    }
+  }
+
+  // Nave vs mina
+  if (ship.invincible <= 0) {
+    for (const m of mines) {
+      if (dist(ship, m) < ship.radius + m.radius * 0.82) {
+        if (ship.shield > 0) {
+          ship.shield -= 1;
+          m.dead = true;
+          explode(m.x, m.y, 10);
         } else {
           killShip();
         }
@@ -683,6 +792,7 @@ function draw() {
   particles.forEach(p => p.draw());
   asteroids.forEach(a => a.draw());
   shootingStars.forEach(s => s.draw());
+  mines.forEach(m => m.draw());
   powerUps.forEach(p => p.draw());
   bullets.forEach(b => b.draw());
   ship.draw();
