@@ -186,8 +186,8 @@ class Ship {
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
     if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
-    const ROT   = 3.5;   // rad/s
-    const THRUST = this.speedBoost > 0 ? 520 : 260;  // px/s²
+    const ROT   = 1.5;   // rad/s (nave super lenta)
+    const THRUST = this.speedBoost > 0 ? 300 : 100;  // px/s² (nave super lenta)
     const DRAG   = 0.987;
 
     if (keys['ArrowLeft'])  this.angle -= ROT * dt;
