@@ -58,15 +58,17 @@ class Bullet {
 }
 
 // ── Asteroid ──────────────────────────────────────────────────────────────────
-const RADII  = [0, 16, 30, 50];   // por tamaño 1, 2, 3
-const SPEEDS = [0, 85, 55, 32];   // velocidad base por tamaño
-const POINTS = [0, 100, 50, 20];  // puntos por tamaño
+const RADII   = [8, 16, 30, 50];    // por tamaño 0, 1, 2, 3 (0 = mini rápido)
+const SPEEDS  = [280, 85, 55, 32];  // velocidad base por tamaño (0 = super rápido)
+const POINTS  = [200, 100, 50, 20]; // puntos por tamaño
 
 const SHOOTING_STAR_INTERVAL = 12;   // s entre spawns
 const SHOOTING_STAR_SPEED    = 220;  // px/s
 const SHOOTING_STAR_TTL      = 6;    // s
 const SHOOTING_STAR_POINTS   = 500;
 const SHOOTING_STAR_RADIUS   = 14;
+
+const FAST_ASTEROID_INTERVAL = 14;   // s entre spawns de asteroide mini rápido
 
 // ── Power-ups ─────────────────────────────────────────────────────────────────
 const POWERUP_DROP_CHANCE = 0.15;            // probabilidad al destruir asteroide
@@ -113,10 +115,26 @@ class Asteroid {
   }
 
   draw() {
+    // Estela del asteroide mini rápido (size 0)
+    if (this.size === 0) {
+      const speed = Math.hypot(this.vx, this.vy);
+      if (speed > 0) {
+        const ux = -this.vx / speed;
+        const uy = -this.vy / speed;
+        const tailLen = 22;
+        ctx.strokeStyle = 'rgba(255,90,90,0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + ux * tailLen, this.y + uy * tailLen);
+        ctx.stroke();
+      }
+    }
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = this.size === 0 ? '#f55' : '#fff';
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
     ctx.beginPath();
@@ -419,6 +437,7 @@ let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
 let shootingStarTimer;
+let fastAsteroidTimer;
 
 function spawnAsteroids(count) {
   const SAFE_DIST = 130;
@@ -432,6 +451,21 @@ function spawnAsteroids(count) {
   }
 }
 
+function spawnFastAsteroid() {
+  // Aparece desde un borde y cruza la pantalla: refuerza la sensación de velocidad.
+  const edge = randInt(0, 3);
+  let x, y, angle;
+  if (edge === 0)      { x = rand(0, W); y = 0;        angle =  Math.PI / 2 + rand(-0.5, 0.5); }
+  else if (edge === 1) { x = W;          y = rand(0, H); angle =  Math.PI     + rand(-0.5, 0.5); }
+  else if (edge === 2) { x = rand(0, W); y = H;         angle = -Math.PI / 2 + rand(-0.5, 0.5); }
+  else                 { x = 0;          y = rand(0, H); angle =  rand(-0.5, 0.5); }
+  const a = new Asteroid(x, y, 0);
+  const speed = SPEEDS[0] + rand(-15, 15);
+  a.vx = Math.cos(angle) * speed;
+  a.vy = Math.sin(angle) * speed;
+  asteroids.push(a);
+}
+
 function initGame() {
   ship          = new Ship();
   bullets   = [];
@@ -440,6 +474,7 @@ function initGame() {
   powerUps  = [];
   shootingStars     = [];
   shootingStarTimer = SHOOTING_STAR_INTERVAL;
+  fastAsteroidTimer  = FAST_ASTEROID_INTERVAL;
   score  = 0;
   lives  = 3;
   level  = 1;
@@ -454,6 +489,7 @@ function nextLevel() {
   powerUps  = [];
   shootingStars     = [];
   shootingStarTimer = SHOOTING_STAR_INTERVAL;
+  fastAsteroidTimer  = FAST_ASTEROID_INTERVAL;
   ship.reset();
   spawnAsteroids(3 + level);
 }
@@ -511,6 +547,13 @@ function update(dt) {
   if (shootingStarTimer <= 0) {
     shootingStars.push(new ShootingStar());
     shootingStarTimer = SHOOTING_STAR_INTERVAL;
+  }
+
+  // Spawn asteroide mini rápido
+  fastAsteroidTimer -= dt;
+  if (fastAsteroidTimer <= 0) {
+    spawnFastAsteroid();
+    fastAsteroidTimer = FAST_ASTEROID_INTERVAL;
   }
 
   ship.update(dt);
